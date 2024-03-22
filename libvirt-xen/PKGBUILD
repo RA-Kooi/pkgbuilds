@@ -103,16 +103,6 @@ backup+=(
 
 prepare() {
   cd "${pkgname%*-xen}-${pkgver}"
-
-  sed -i 's|/sysconfig/|/conf.d/|g' \
-    src/remote/libvirtd.service.in \
-    tools/{libvirt-guests.service,libvirt-guests.sh,virt-pki-validate}.in \
-    docs/manpages/libvirt-guests.rst \
-    src/locking/virtlockd.service.in \
-    src/logging/virtlogd.service.in
-  sed -i 's|/usr/libexec/qemu-bridge-helper|/usr/lib/qemu/qemu-bridge-helper|g' \
-    src/qemu/qemu.conf.in \
-    src/qemu/test_libvirtd_qemu.aug.in
 }
 
 build() {
