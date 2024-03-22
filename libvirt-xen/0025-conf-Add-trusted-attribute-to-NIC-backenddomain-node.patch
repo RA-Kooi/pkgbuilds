@@ -1,0 +1,118 @@
+From 62b19c74d746ccce7a50af16a66cc8415220b83e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Rafa=C3=ABl=20Kooi?=
+ <48814281+RA-Kooi@users.noreply.github.com>
+Date: Fri, 22 Mar 2024 12:27:57 +0100
+Subject: [PATCH 14/15] conf: Add "trusted" attribute to NIC "backenddomain"
+ node
+
+Like disk backend domains (Xen), NIC backend domains can be marked as
+untrusted. This functions in the same way as the disk case where the
+frontend is notified of whether or not the backend domain is trusted or
+not.
+
+As far as I am aware this is a Xen only feature. Hence I will only be
+implementing handling of this attribute in the libxl backend.
+---
+ src/conf/domain_conf.c                        | 25 +++++++++++++++++++
+ src/conf/domain_conf.h                        |  3 +++
+ src/conf/schemas/domaincommon.rng             |  5 ++++
+ .../device-backenddomain.xml                  |  2 +-
+ 4 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index d5a4b762bb..c3570ec7b4 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -9504,6 +9504,9 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
+     xmlNodePtr bandwidth_node = NULL;
+     xmlNodePtr mac_node = NULL;
+     xmlNodePtr target_node = NULL;
++#ifdef LIBXL_HAVE_NIC_TRUSTED
++    xmlNodePtr domain_node = NULL;
++#endif
+     xmlNodePtr coalesce_node = NULL;
+     xmlNodePtr backend_node = NULL;
+     VIR_XPATH_NODE_AUTORESTORE(ctxt)
+@@ -9801,6 +9804,16 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
+     def->script = virXPathString("string(./script/@path)", ctxt);
+     def->downscript = virXPathString("string(./downscript/@path)", ctxt);
+     def->domain_name = virXPathString("string(./backenddomain/@name)", ctxt);
++#ifdef LIBXL_HAVE_NIC_TRUSTED
++    if ((domain_node = virXPathNode("./backenddomain", ctxt))) {
++        if (virXMLPropTristateBool(domain_node, "trusted", VIR_XML_PROP_NONE,
++                                   &def->trusted) < 0)
++            return NULL;
++
++        if (def->trusted == VIR_TRISTATE_BOOL_ABSENT)
++            def->trusted = VIR_TRISTATE_BOOL_YES;
++    }
++#endif
+ 
+     if (parse_filterref) {
+         xmlNodePtr filterref_node = virXPathNode("./filterref", ctxt);
+@@ -24327,7 +24340,19 @@ virDomainNetDefFormat(virBuffer *buf,
+                           def->script);
+     virBufferEscapeString(buf, "<downscript path='%s'/>\n",
+                           def->downscript);
++
++#ifdef LIBXL_HAVE_NIC_TRUSTED
++    if (def->domain_name != NULL) {
++        virBufferEscapeString(buf, "<backenddomain name='%s'", def->domain_name);
++
++        virBufferAsprintf(buf, " trusted='%s'",
++                          virTristateBoolTypeToString(def->trusted));
++
++        virBufferAddLit(buf, "/>\n");
++    }
++#else
+     virBufferEscapeString(buf, "<backenddomain name='%s'/>\n", def->domain_name);
++#endif
+ 
+     if (def->ifname &&
+         (def->managed_tap == VIR_TRISTATE_BOOL_NO ||
+diff --git a/src/conf/domain_conf.h b/src/conf/domain_conf.h
+index 5fcbdf3294..fae51d1574 100644
+--- a/src/conf/domain_conf.h
++++ b/src/conf/domain_conf.h
+@@ -1166,6 +1166,9 @@ struct _virDomainNetDef {
+     char *script;
+     char *downscript;
+     char *domain_name; /* backend domain name */
++#ifdef LIBXL_HAVE_NIC_TRUSTED
++    virTristateBool trusted;
++#endif
+     char *ifname; /* interface name on the host (<target dev='x'/>) */
+     virTristateBool managed_tap;
+     virNetDevIPInfo hostIP;
+diff --git a/src/conf/schemas/domaincommon.rng b/src/conf/schemas/domaincommon.rng
+index 8b9fdb0f58..936621d8fe 100644
+--- a/src/conf/schemas/domaincommon.rng
++++ b/src/conf/schemas/domaincommon.rng
+@@ -3758,6 +3758,11 @@
+           <attribute name="name">
+             <ref name="objectNameWithSlash"/>
+           </attribute>
++          <optional>
++              <attribute name="trusted">
++                  <ref name="virYesNo"/>
++              </attribute>
++          </optional>
+           <empty/>
+         </element>
+       </optional>
+diff --git a/tests/genericxml2xmlindata/device-backenddomain.xml b/tests/genericxml2xmlindata/device-backenddomain.xml
+index 4833618bac..a4d2aea1aa 100644
+--- a/tests/genericxml2xmlindata/device-backenddomain.xml
++++ b/tests/genericxml2xmlindata/device-backenddomain.xml
+@@ -24,7 +24,7 @@
+     <interface type='bridge'>
+       <mac address='aa:bb:cc:dd:ee:ff'/>
+       <source bridge='br0'/>
+-      <backenddomain name='foo'/>
++      <backenddomain name='foo' trusted='yes'/>
+     </interface>
+   </devices>
+ </domain>
+-- 
+2.44.0
+

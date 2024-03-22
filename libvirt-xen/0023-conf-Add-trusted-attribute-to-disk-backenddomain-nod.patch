@@ -1,0 +1,128 @@
+From 8c83c856d2036ebfda121e17ed0af00a3aefd4b2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Rafa=C3=ABl=20Kooi?=
+ <48814281+RA-Kooi@users.noreply.github.com>
+Date: Fri, 22 Mar 2024 12:15:56 +0100
+Subject: [PATCH 12/15] conf: Add "trusted" attribute to disk "backenddomain"
+ node
+
+Allow specifying whether a disk using a backend domain is trusted or
+not. When a Xen backend domain is (un)trusted the frontend will be
+notified of this fact by the hypervisor. This advisory can be used by
+the frontend to do any mitigations if implemented.
+
+As far as I am aware this is a Xen specific feature. Handling of this
+attribute will only be implemented for the libxl backend by me.
+---
+ src/conf/domain_conf.c                        | 24 +++++++++++++++++++
+ src/conf/domain_conf.h                        |  7 ++++++
+ src/conf/schemas/domaincommon.rng             |  5 ++++
+ .../device-backenddomain.xml                  |  2 +-
+ 4 files changed, 37 insertions(+), 1 deletion(-)
+
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index 4e817dbd2b..d5a4b762bb 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -8056,6 +8056,9 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
+     xmlNodePtr driverNode;
+     xmlNodePtr mirrorNode;
+     xmlNodePtr transientNode;
++#ifdef LIBXL_HAVE_DISK_TRUSTED
++    xmlNodePtr backendDomainNode;
++#endif
+     g_autoptr(virStorageSource) src = NULL;
+ 
+     if (!(src = virDomainDiskDefParseSourceXML(xmlopt, node, ctxt, flags)))
+@@ -8185,6 +8188,16 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
+ 
+     def->domain_name = virXPathString("string(./backenddomain/@name)", ctxt);
+     def->script = virXPathString("string(./script/@path)", ctxt);
++#ifdef LIBXL_HAVE_DISK_TRUSTED
++    if ((backendDomainNode = virXPathNode("./backenddomain", ctxt))) {
++        if (virXMLPropTristateBool(backendDomainNode, "trusted",
++                                  VIR_XML_PROP_NONE, &def->trusted) < 0)
++            return NULL;
++
++        if (def->trusted == VIR_TRISTATE_BOOL_ABSENT)
++            def->trusted = VIR_TRISTATE_BOOL_YES;
++    }
++#endif
+     def->serial = virXPathString("string(./serial)", ctxt);
+     def->wwn = virXPathString("string(./wwn)", ctxt);
+     def->vendor = virXPathString("string(./vendor)", ctxt);
+@@ -22979,7 +22992,18 @@ virDomainDiskDefFormat(virBuffer *buf,
+     if (virDomainDiskBackingStoreFormat(&childBuf, def->src, xmlopt, flags) < 0)
+         return -1;
+ 
++#ifdef LIBXL_HAVE_DISK_TRUSTED
++    if (def->domain_name != NULL) {
++        virBufferEscapeString(&childBuf, "<backenddomain name='%s'", def->domain_name);
++
++        virBufferAsprintf(&childBuf, " trusted='%s'",
++                          virTristateBoolTypeToString(def->trusted));
++
++        virBufferAddLit(&childBuf, "/>\n");
++    }
++#else
+     virBufferEscapeString(&childBuf, "<backenddomain name='%s'/>\n", def->domain_name);
++#endif
+     virBufferEscapeString(&childBuf, "<script path='%s'/>\n", def->script);
+ 
+     virDomainDiskGeometryDefFormat(&childBuf, def);
+diff --git a/src/conf/domain_conf.h b/src/conf/domain_conf.h
+index d75627fbc1..5fcbdf3294 100644
+--- a/src/conf/domain_conf.h
++++ b/src/conf/domain_conf.h
+@@ -26,6 +26,10 @@
+ #include <libxml/tree.h>
+ #include <libxml/xpath.h>
+ 
++#if __has_include("libxl.h")
++#include <libxl.h>
++#endif
++
+ #include "internal.h"
+ #include "virconftypes.h"
+ #include "capabilities.h"
+@@ -574,6 +578,9 @@ struct _virDomainDiskDef {
+     virDomainDiskDetectZeroes detect_zeroes;
+     virTristateSwitch discard_no_unref;
+     char *domain_name; /* backend domain name */
++#ifdef LIBXL_HAVE_DISK_TRUSTED
++    virTristateBool trusted;
++#endif
+     unsigned int queues;
+     unsigned int queue_size;
+     virDomainDiskModel model;
+diff --git a/src/conf/schemas/domaincommon.rng b/src/conf/schemas/domaincommon.rng
+index 837d04c5e9..8b9fdb0f58 100644
+--- a/src/conf/schemas/domaincommon.rng
++++ b/src/conf/schemas/domaincommon.rng
+@@ -1545,6 +1545,11 @@
+           <attribute name="name">
+             <ref name="objectNameWithSlash"/>
+           </attribute>
++          <optional>
++              <attribute name="trusted">
++                  <ref name="virYesNo"/>
++              </attribute>
++          </optional>
+           <empty/>
+         </element>
+       </optional>
+diff --git a/tests/genericxml2xmlindata/device-backenddomain.xml b/tests/genericxml2xmlindata/device-backenddomain.xml
+index 8e89c7fec3..4833618bac 100644
+--- a/tests/genericxml2xmlindata/device-backenddomain.xml
++++ b/tests/genericxml2xmlindata/device-backenddomain.xml
+@@ -16,7 +16,7 @@
+     <disk type='block' device='disk'>
+       <driver name='qemu' type='raw'/>
+       <source dev='/dev/HostVG/QEMUGuest1'/>
+-      <backenddomain name='bar'/>
++      <backenddomain name='bar' trusted='yes'/>
+       <target dev='hda' bus='ide'/>
+       <address type='drive' controller='0' bus='0' target='0' unit='0'/>
+     </disk>
+-- 
+2.44.0
+

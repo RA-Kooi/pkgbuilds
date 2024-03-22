@@ -1,0 +1,220 @@
+From fdfe8c796b2ee155282676c26509a85cbafbe549 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Rafa=C3=ABl=20Kooi?=
+ <48814281+RA-Kooi@users.noreply.github.com>
+Date: Fri, 22 Mar 2024 12:25:01 +0100
+Subject: [PATCH 13/15] libxl: Use disk "trusted" attribute
+
+Previous patch introduces the optional "trusted" attribute for the
+"backenddomain" element in disk specifications. Default to trusted
+behavior if unspecified, which is the current behavior.
+---
+ src/libxl/libxl_conf.c                                  | 3 +++
+ tests/libxlxml2domconfigdata/basic-hvm.json             | 3 ++-
+ tests/libxlxml2domconfigdata/basic-pv.json              | 3 ++-
+ tests/libxlxml2domconfigdata/basic-pvh.json             | 3 ++-
+ tests/libxlxml2domconfigdata/cpu-shares-hvm.json        | 3 ++-
+ tests/libxlxml2domconfigdata/efi-hvm.json               | 3 ++-
+ tests/libxlxml2domconfigdata/fullvirt-acpi-slic.json    | 3 ++-
+ tests/libxlxml2domconfigdata/fullvirt-cpuid.json        | 3 ++-
+ tests/libxlxml2domconfigdata/max-eventchannels-hvm.json | 3 ++-
+ tests/libxlxml2domconfigdata/max-gntframes-hvm.json     | 3 ++-
+ tests/libxlxml2domconfigdata/moredevs-hvm.json          | 6 ++++--
+ tests/libxlxml2domconfigdata/variable-clock-hvm.json    | 3 ++-
+ tests/libxlxml2domconfigdata/vnuma-hvm.json             | 3 ++-
+ 13 files changed, 29 insertions(+), 13 deletions(-)
+
+diff --git a/src/libxl/libxl_conf.c b/src/libxl/libxl_conf.c
+index d51ec65911..a697129f37 100644
+--- a/src/libxl/libxl_conf.c
++++ b/src/libxl/libxl_conf.c
+@@ -1254,6 +1254,9 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
+     }
+ 
+     x_disk->backend_domname = g_strdup(l_disk->domain_name);
++#ifdef LIBXL_HAVE_DISK_TRUSTED
++    libxl_defbool_set(&x_disk->trusted, l_disk->trusted < VIR_TRISTATE_BOOL_NO);
++#endif
+ 
+     return 0;
+ }
+diff --git a/tests/libxlxml2domconfigdata/basic-hvm.json b/tests/libxlxml2domconfigdata/basic-hvm.json
+index d30875420d..cb9efaa8eb 100644
+--- a/tests/libxlxml2domconfigdata/basic-hvm.json
++++ b/tests/libxlxml2domconfigdata/basic-hvm.json
+@@ -55,7 +55,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/basic-pv.json b/tests/libxlxml2domconfigdata/basic-pv.json
+index 32d188fabd..785ef4448f 100644
+--- a/tests/libxlxml2domconfigdata/basic-pv.json
++++ b/tests/libxlxml2domconfigdata/basic-pv.json
+@@ -32,7 +32,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/basic-pvh.json b/tests/libxlxml2domconfigdata/basic-pvh.json
+index f51957aa85..99ff996dfe 100644
+--- a/tests/libxlxml2domconfigdata/basic-pvh.json
++++ b/tests/libxlxml2domconfigdata/basic-pvh.json
+@@ -33,7 +33,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/cpu-shares-hvm.json b/tests/libxlxml2domconfigdata/cpu-shares-hvm.json
+index 15105c83ad..ee4b1f3dea 100644
+--- a/tests/libxlxml2domconfigdata/cpu-shares-hvm.json
++++ b/tests/libxlxml2domconfigdata/cpu-shares-hvm.json
+@@ -55,7 +55,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/efi-hvm.json b/tests/libxlxml2domconfigdata/efi-hvm.json
+index 32b5a49c3f..e5ac30d5b9 100644
+--- a/tests/libxlxml2domconfigdata/efi-hvm.json
++++ b/tests/libxlxml2domconfigdata/efi-hvm.json
+@@ -57,7 +57,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/fullvirt-acpi-slic.json b/tests/libxlxml2domconfigdata/fullvirt-acpi-slic.json
+index 26f5abefee..0df15776ef 100644
+--- a/tests/libxlxml2domconfigdata/fullvirt-acpi-slic.json
++++ b/tests/libxlxml2domconfigdata/fullvirt-acpi-slic.json
+@@ -48,7 +48,8 @@
+             "backend": "phy",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "on_reboot": "restart",
+diff --git a/tests/libxlxml2domconfigdata/fullvirt-cpuid.json b/tests/libxlxml2domconfigdata/fullvirt-cpuid.json
+index 8bf41894a5..9093b09d88 100644
+--- a/tests/libxlxml2domconfigdata/fullvirt-cpuid.json
++++ b/tests/libxlxml2domconfigdata/fullvirt-cpuid.json
+@@ -55,7 +55,8 @@
+             "backend": "phy",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "on_reboot": "restart",
+diff --git a/tests/libxlxml2domconfigdata/max-eventchannels-hvm.json b/tests/libxlxml2domconfigdata/max-eventchannels-hvm.json
+index 6f0daa065f..82e08e747e 100644
+--- a/tests/libxlxml2domconfigdata/max-eventchannels-hvm.json
++++ b/tests/libxlxml2domconfigdata/max-eventchannels-hvm.json
+@@ -56,7 +56,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/max-gntframes-hvm.json b/tests/libxlxml2domconfigdata/max-gntframes-hvm.json
+index 35de588abc..7fa0730c3a 100644
+--- a/tests/libxlxml2domconfigdata/max-gntframes-hvm.json
++++ b/tests/libxlxml2domconfigdata/max-gntframes-hvm.json
+@@ -56,7 +56,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/moredevs-hvm.json b/tests/libxlxml2domconfigdata/moredevs-hvm.json
+index bdc9afc29b..4151d6f02c 100644
+--- a/tests/libxlxml2domconfigdata/moredevs-hvm.json
++++ b/tests/libxlxml2domconfigdata/moredevs-hvm.json
+@@ -62,7 +62,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         },
+         {
+             "pdev_path": "/root/boot.iso",
+@@ -70,7 +71,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "is_cdrom": 1
++            "is_cdrom": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/variable-clock-hvm.json b/tests/libxlxml2domconfigdata/variable-clock-hvm.json
+index 3c131c603c..f76bbb5c56 100644
+--- a/tests/libxlxml2domconfigdata/variable-clock-hvm.json
++++ b/tests/libxlxml2domconfigdata/variable-clock-hvm.json
+@@ -57,7 +57,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+diff --git a/tests/libxlxml2domconfigdata/vnuma-hvm.json b/tests/libxlxml2domconfigdata/vnuma-hvm.json
+index 68c1c2501d..a98ae4164f 100644
+--- a/tests/libxlxml2domconfigdata/vnuma-hvm.json
++++ b/tests/libxlxml2domconfigdata/vnuma-hvm.json
+@@ -149,7 +149,8 @@
+             "backend": "qdisk",
+             "format": "raw",
+             "removable": 1,
+-            "readwrite": 1
++            "readwrite": 1,
++            "trusted": "True"
+         }
+     ],
+     "nics": [
+-- 
+2.44.0
+
