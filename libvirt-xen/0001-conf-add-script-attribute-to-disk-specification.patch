@@ -1,0 +1,87 @@
+From d4666b650114f2da482352374eec7103510b409d Mon Sep 17 00:00:00 2001
+From: Marek Marczykowski <marmarek@invisiblethingslab.com>
+Date: Fri, 5 Apr 2013 01:37:29 +0200
+Subject: [PATCH] conf: add 'script' attribute to disk specification
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Script to be called to prepare custom device for domain. Done with Xen
+in mind, it maps to libxl_device_disk.script.
+
+XML configuration would be:
+<disk type='block' device='disk'>
+    <source dev='/dev/mapper/custom-device'/>
+    <script path='/script/to/setup/custom-device'/>
+    <target dev='xvdc'/>
+</disk>
+
+Signed-off-by: Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>
+---
+ src/conf/domain_conf.c            | 3 +++
+ src/conf/domain_conf.h            | 1 +
+ src/conf/schemas/domaincommon.rng | 8 ++++++++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index 3597959e33..bc5d761ec9 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -2388,6 +2388,7 @@ virDomainDiskDefFree(virDomainDiskDef *def)
+     g_free(def->domain_name);
+     g_free(def->blkdeviotune.group_name);
+     g_free(def->virtio);
++    g_free(def->script);
+     virDomainDeviceInfoClear(&def->info);
+     virObjectUnref(def->privateData);
+     g_slist_free_full(def->iothreads, (GDestroyNotify) virDomainDiskIothreadDefFree);
+@@ -8174,6 +8175,7 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
+         return NULL;
+ 
+     def->domain_name = virXPathString("string(./backenddomain/@name)", ctxt);
++    def->script = virXPathString("string(./script/@path)", ctxt);
+     def->serial = virXPathString("string(./serial)", ctxt);
+     def->wwn = virXPathString("string(./wwn)", ctxt);
+     def->vendor = virXPathString("string(./vendor)", ctxt);
+@@ -22929,6 +22931,7 @@ virDomainDiskDefFormat(virBuffer *buf,
+         return -1;
+ 
+     virBufferEscapeString(&childBuf, "<backenddomain name='%s'/>\n", def->domain_name);
++    virBufferEscapeString(&childBuf, "<script path='%s'/>\n", def->script);
+ 
+     virDomainDiskGeometryDefFormat(&childBuf, def);
+     virDomainDiskBlockIoDefFormat(&childBuf, def);
+diff --git a/src/conf/domain_conf.h b/src/conf/domain_conf.h
+index c7e5005b3b..747ff135e0 100644
+--- a/src/conf/domain_conf.h
++++ b/src/conf/domain_conf.h
+@@ -578,6 +578,7 @@ struct _virDomainDiskDef {
+     unsigned int queue_size;
+     virDomainDiskModel model;
+     virDomainVirtioOptions *virtio;
++    char *script;
+ 
+     bool diskElementAuth;
+     bool diskElementEnc;
+diff --git a/src/conf/schemas/domaincommon.rng b/src/conf/schemas/domaincommon.rng
+index df44cd9857..802d81b9ef 100644
+--- a/src/conf/schemas/domaincommon.rng
++++ b/src/conf/schemas/domaincommon.rng
+@@ -1548,6 +1548,14 @@
+           <empty/>
+         </element>
+       </optional>
++      <optional>
++        <element name="script">
++          <attribute name="path">
++            <ref name="filePath"/>
++          </attribute>
++          <empty/>
++        </element>
++      </optional>
+       <optional>
+         <element name="readonly">
+           <empty/>
+-- 
+2.44.0
+

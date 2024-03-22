@@ -84,12 +84,25 @@ backup=(
   'etc/logrotate.d/libvirtd.qemu'
   'etc/sasl2/libvirt.conf'
 )
-source=(
+_source=(
   "https://libvirt.org/sources/$pkgname-$pkgver.tar.xz"{,.asc}
 )
-sha256sums=('36d9077e2b0ef6b0c6df3b42e42a67411b6ce3b1564b427b55e65019dde60eed'
+_sha256sums=('36d9077e2b0ef6b0c6df3b42e42a67411b6ce3b1564b427b55e65019dde60eed'
             'SKIP')
 validpgpkeys=('453B65310595562855471199CA68BE8010084C9C') # Jiří Denemark <jdenemar@redhat.com>
+
+_patches=(
+  "0001-conf-add-script-attribute-to-disk-specification.patch"
+  "0002-libxl-use-disk-script-attribute.patch"
+)
+
+_patchsums=(
+  "65929a95d0ad7d8b690429e9e451d88aa0c7ffb25605b5866e26669263841d9f" #0001-conf-add-script-attribute-to-disk-specification.patch
+  "ef14cfdf670d58941033c1bd529d8842e5a82b1b94ad4e8b8cc09ed6142af8fc" #0002-libxl-use-disk-script-attribute.patch
+)
+
+source=("${_source[@]}" "${_patches[@]}")
+sha256sums=("${_sha256sums[@]}" "${_patchsums[@]}")
 
 # libvirt-xen
 pkgname=libvirt-xen
@@ -103,6 +116,12 @@ backup+=(
 
 prepare() {
   cd "${pkgname%*-xen}-${pkgver}"
+
+  for patchurl in "${_patches[@]}"; do
+    patch=$(basename $patchurl)
+    echo "==> Applying patch '${patch}'..."
+    patch -Np1 < "../${patch}"
+  done
 }
 
 build() {
