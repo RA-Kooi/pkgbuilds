@@ -102,6 +102,7 @@ _patches=(
   "0011-libxl-add-support-for-emulator-kernel-and-ramdisk-pa.patch"
   "0012-libxl-Fix-setting-invtsc-in-Xen-4.14.patch"
   "0013-libxl-fail-with-distinct-error-on-unsupported-PM-sus.patch"
+  "0022-libxl-setup-shadow-memory-according-to-max-hotplug-m.patch"
 )
 
 _patchsums=(
@@ -115,6 +116,7 @@ _patchsums=(
   "208d385016bbb255326f9a9a23ab8753f426938d5cdf11ab55a84659c4010bb9" #0011-libxl-add-support-for-emulator-kernel-and-ramdisk-pa.patch
   "5c7c9103b453ae6cbdd1559add198c3d6a0c2d24b484f094c66416add382d69a" #0012-libxl-Fix-setting-invtsc-in-Xen-4.14.patch
   "901e3ee2e8a7307344e9e4b0f19ae68747dc0465356981dc942225a3c601d761" #0013-libxl-fail-with-distinct-error-on-unsupported-PM-sus.patch
+  "6d70a1f5250f7de56c02ebcd265942703b74425f7877ad1c4636b35813ae3cdf" #0022-libxl-setup-shadow-memory-according-to-max-hotplug-m.patch
 )
 
 source=("${_source[@]}" "${_patches[@]}")
