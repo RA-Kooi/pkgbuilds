@@ -100,6 +100,7 @@ _patches=(
   "0008-libxl-add-linux-stubdom-support.patch"
   "0010-libxl-add-support-for-stubdom_mem-option.patch"
   "0011-libxl-add-support-for-emulator-kernel-and-ramdisk-pa.patch"
+  "0012-libxl-Fix-setting-invtsc-in-Xen-4.14.patch"
 )
 
 _patchsums=(
@@ -111,6 +112,7 @@ _patchsums=(
   "ef62ecbfcb111f495a52a21083f4f5e639b96fd8d5510261f95b5704d553e0d0" #0008-libxl-add-linux-stubdom-support.patch
   "541c01c90903212ee2139b5f5181198e4a85670afc6bdec970dc1d47ecaa143d" #0010-libxl-add-support-for-stubdom_mem-option.patch
   "208d385016bbb255326f9a9a23ab8753f426938d5cdf11ab55a84659c4010bb9" #0011-libxl-add-support-for-emulator-kernel-and-ramdisk-pa.patch
+  "5c7c9103b453ae6cbdd1559add198c3d6a0c2d24b484f094c66416add382d69a" #0012-libxl-Fix-setting-invtsc-in-Xen-4.14.patch
 )
 
 source=("${_source[@]}" "${_patches[@]}")
