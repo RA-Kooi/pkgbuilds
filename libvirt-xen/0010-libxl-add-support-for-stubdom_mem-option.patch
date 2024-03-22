@@ -1,0 +1,119 @@
+From 8206f70190a8ef7c896d0716b272c8ad079888bc Mon Sep 17 00:00:00 2001
+From: HW42 <hw42@ipsumj.de>
+Date: Sat, 22 Apr 2017 08:59:12 +0200
+Subject: [PATCH] libxl: add support for stubdom_mem option
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>
+---
+ src/conf/domain_conf.c            | 21 +++++++++++++++++++++
+ src/conf/domain_conf.h            |  1 +
+ src/conf/schemas/domaincommon.rng | 10 ++++++++++
+ src/libxl/libxl_conf.c            |  3 +++
+ 4 files changed, 35 insertions(+)
+
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index 6ee82586ca..158895d82b 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -18863,6 +18863,17 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
+     }
+     def->emulator_cmdline = virXPathString("string(./devices/emulator/@cmdline)", ctxt);
+ 
++    n = virXPathULongLong("string(./devices/emulator/@memory)",
++                      ctxt,
++                      &def->emulator_memory);
++    if (n == -2) {
++        virReportError(VIR_ERR_XML_ERROR, "%s",
++                _("emulator memory (in KiB) must be an integer"));
++        return NULL;
++    } else if (n < 0) {
++        def->emulator_memory = 0;
++    }
++
+     /* analysis of the disk devices */
+     if ((n = virXPathNodeSet("./devices/disk", ctxt, &nodes)) < 0)
+         return NULL;
+@@ -21451,6 +21462,14 @@ virDomainDefCheckABIStabilityFlags(virDomainDef *src,
+         goto error;
+     }
+ 
++    if (src->emulator_memory != dst->emulator_memory) {
++        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
++                _("Target domain emulator memory size %llu does not match source %llu"),
++                dst->emulator_memory,
++                src->emulator_memory);
++        goto error;
++    }
++
+     if (!virDomainDefFeaturesCheckABIStability(src, dst))
+         goto error;
+ 
+@@ -28032,6 +28051,8 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
+             virBufferAsprintf(buf, " type='%s'",
+                               virDomainEmulatorTypeTypeToString(def->emulator_type));
+         }
++        if (def->emulator_memory != 0)
++            virBufferAsprintf(buf, " memory='%llu'", def->emulator_memory);
+         virBufferEscapeString(buf, " cmdline='%s'", def->emulator_cmdline);
+         if (!def->emulator) {
+             virBufferAddLit(buf, "/>\n");
+diff --git a/src/conf/domain_conf.h b/src/conf/domain_conf.h
+index 052cfa8d93..ad19573ee4 100644
+--- a/src/conf/domain_conf.h
++++ b/src/conf/domain_conf.h
+@@ -3022,6 +3022,7 @@ struct _virDomainDef {
+     char *emulator;
+     virDomainEmulatorType emulator_type;
+     char *emulator_cmdline;
++    unsigned long long emulator_memory;
+     /* Most {caps_,hyperv_,kvm_,}feature options utilize a virTristateSwitch
+      * to handle support. A few assign specific data values to the option.
+      * See virDomainDefFeaturesCheckABIStability() for details. */
+diff --git a/src/conf/schemas/domaincommon.rng b/src/conf/schemas/domaincommon.rng
+index cf02c59820..e1ee93c43d 100644
+--- a/src/conf/schemas/domaincommon.rng
++++ b/src/conf/schemas/domaincommon.rng
+@@ -4088,6 +4088,11 @@
+               <text/>
+             </attribute>
+           </optional>
++          <optional>
++            <attribute name="memory">
++              <ref name="memoryKB"/>
++            </attribute>
++          </optional>
+           <ref name="absFilePath"/>
+         </group>
+         <group>
+@@ -4098,6 +4103,11 @@
+               <value>stubdom-linux</value>
+             </choice>
+           </attribute>
++          <optional>
++            <attribute name="memory">
++              <ref name="memoryKB"/>
++            </attribute>
++          </optional>
+           <empty/>
+         </group>
+       </choice>
+diff --git a/src/libxl/libxl_conf.c b/src/libxl/libxl_conf.c
+index ddfd728ed3..47d7f2d6af 100644
+--- a/src/libxl/libxl_conf.c
++++ b/src/libxl/libxl_conf.c
+@@ -710,6 +710,9 @@ libxlMakeDomBuildInfo(virDomainDef *def,
+             }
+         }
+ 
++        if (def->emulator_memory != 0)
++            b_info->stubdomain_memkb = def->emulator_memory;
++
+         if (def->nserials) {
+             if (def->nserials == 1) {
+                 if (libxlMakeChrdevStr(def->serials[0], &b_info->u.hvm.serial) <
+-- 
+2.44.0
+
