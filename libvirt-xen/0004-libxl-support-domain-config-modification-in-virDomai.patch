@@ -1,0 +1,52 @@
+From 9f8a193cbb33bc419fa0f80e21ad925be9e69432 Mon Sep 17 00:00:00 2001
+From: Marek Marczykowski <marmarek@invisiblethingslab.com>
+Date: Sun, 14 Apr 2013 04:28:00 +0200
+Subject: [PATCH] libxl: support domain config modification in
+ virDomainRestoreFlags
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>
+---
+ src/libxl/libxl_driver.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/src/libxl/libxl_driver.c b/src/libxl/libxl_driver.c
+index e42a3dc0a9..c9252c724a 100644
+--- a/src/libxl/libxl_driver.c
++++ b/src/libxl/libxl_driver.c
+@@ -1947,11 +1947,6 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
+ #endif
+ 
+     virCheckFlags(VIR_DOMAIN_SAVE_PAUSED, -1);
+-    if (dxml) {
+-        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+-                       _("xml modification unsupported"));
+-        return -1;
+-    }
+ 
+     fd = libxlDomainSaveImageOpen(driver, from, &def, &hdr);
+     if (fd < 0)
+@@ -1960,6 +1955,18 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
+     if (virDomainRestoreFlagsEnsureACL(conn, def) < 0)
+         goto cleanup;
+ 
++    if (dxml) {
++        virDomainDef *def2 = NULL;
++
++        if (!(def2 = virDomainDefParseString(dxml,
++                                             driver->xmlopt, NULL,
++                                             VIR_DOMAIN_DEF_PARSE_INACTIVE))) {
++            goto cleanup;
++        }
++        virDomainDefFree(def);
++        def = def2;
++    }
++
+     if (!(vm = virDomainObjListAdd(driver->domains, &def,
+                                    driver->xmlopt,
+                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
+-- 
+2.44.0
+
