@@ -1,0 +1,234 @@
+From c3c74a0b42715c97cc4e8891e78be1e5779cfc60 Mon Sep 17 00:00:00 2001
+From: Marek Marczykowski <marmarek@invisiblethingslab.com>
+Date: Sun, 7 Apr 2013 19:48:52 +0200
+Subject: [PATCH] libxl: Stubdom emulator type
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Xen have feature of having device model in separate domain (called stub
+domain). Add 'type' attribute to 'emulator' element to allow selecting
+such configuration. Emulator path is still used for qemu running in dom0
+(if any). Libxl currently do not allow to select stubdomain path.
+
+Signed-off-by: Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>
+---
+ docs/formatdomain.rst             | 14 +++++++++++
+ src/conf/domain_conf.c            | 42 +++++++++++++++++++++++++++++--
+ src/conf/domain_conf.h            | 10 ++++++++
+ src/conf/schemas/domaincommon.rng | 28 ++++++++++++++++++++-
+ src/libxl/libxl_conf.c            | 18 +++++++++++++
+ 5 files changed, 109 insertions(+), 3 deletions(-)
+
+diff --git a/docs/formatdomain.rst b/docs/formatdomain.rst
+index 967283aaa9..be3b3376e7 100644
+--- a/docs/formatdomain.rst
++++ b/docs/formatdomain.rst
+@@ -2469,6 +2469,20 @@ guest domain. All devices occur as children of the main ``devices`` element.
+    specifies the recommended default emulator to use for each particular domain
+    type / architecture combination.
+ 
++   :since:`Since 1.2.13`, the ``emulator`` element may contain ``type``
++   attribute. Possible values are:
++
++   ``default``
++     Equivalent to not setting the ``type`` attribute at all.
++
++   ``stubdom``
++     Launch  emulator in stub domain (Xen only). The emulator path still
++     indicate which binary is used in dom0 - there is no control which binary
++     is used as a stub domain.
++
++   :since:`Since 1.2.20`, the ``emulator`` element may contain a ``cmdline``
++   attribute with custom command line arguments.
++
+ To help users identifying devices they care about, every device can have direct
+ child ``alias`` element which then has ``name`` attribute where users can store
+ identifier for the device. The identifier has to have "ua-" prefix and must be
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index bc5d761ec9..f2099487f5 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -1278,6 +1278,11 @@ VIR_ENUM_IMPL(virDomainDiskTray,
+               "open",
+ );
+ 
++VIR_ENUM_IMPL(virDomainEmulatorType,
++              VIR_DOMAIN_EMULATOR_TYPE_LAST,
++              "qemu",
++              "stubdom");
++
+ VIR_ENUM_IMPL(virDomainRNGModel,
+               VIR_DOMAIN_RNG_MODEL_LAST,
+               "virtio",
+@@ -3996,6 +4001,7 @@ void virDomainDefFree(virDomainDef *def)
+     g_free(def->name);
+     virBitmapFree(def->cpumask);
+     g_free(def->emulator);
++    g_free(def->emulator_cmdline);
+     g_free(def->description);
+     g_free(def->title);
+     g_free(def->kvm_features);
+@@ -18845,6 +18851,17 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
+     if (virDomainDefParseBootOptions(def, ctxt, xmlopt, flags) < 0)
+         return NULL;
+ 
++    def->emulator = virXPathString("string(./devices/emulator[1])", ctxt);
++    if ((tmp = virXPathString("string(./devices/emulator/@type)", ctxt))) {
++        def->emulator_type = virDomainEmulatorTypeTypeFromString(tmp);
++        g_free(tmp);
++        if (def->emulator_type < 0) {
++            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
++                           _("Unknown emulator type '%s'"), tmp);
++        }
++    }
++    def->emulator_cmdline = virXPathString("string(./devices/emulator/@cmdline)", ctxt);
++
+     /* analysis of the disk devices */
+     if ((n = virXPathNodeSet("./devices/disk", ctxt, &nodes)) < 0)
+         return NULL;
+@@ -21425,6 +21442,14 @@ virDomainDefCheckABIStabilityFlags(virDomainDef *src,
+         goto error;
+     }
+ 
++    if (src->emulator_type != dst->emulator_type) {
++        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
++                _("Target domain emulator type %s does not match source %s"),
++                virDomainEmulatorTypeTypeToString(dst->emulator_type),
++                virDomainEmulatorTypeTypeToString(src->emulator_type));
++        goto error;
++    }
++
+     if (!virDomainDefFeaturesCheckABIStability(src, dst))
+         goto error;
+ 
+@@ -27999,8 +28024,21 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
+     virBufferAddLit(buf, "<devices>\n");
+     virBufferAdjustIndent(buf, 2);
+ 
+-    virBufferEscapeString(buf, "<emulator>%s</emulator>\n",
+-                          def->emulator);
++    if (def->emulator ||
++            def->emulator_type != VIR_DOMAIN_EMULATOR_TYPE_DEFAULT) {
++        virBufferAddLit(buf, "<emulator");
++        if (def->emulator_type != VIR_DOMAIN_EMULATOR_TYPE_DEFAULT) {
++            virBufferAsprintf(buf, " type='%s'",
++                              virDomainEmulatorTypeTypeToString(def->emulator_type));
++        }
++        virBufferEscapeString(buf, " cmdline='%s'", def->emulator_cmdline);
++        if (!def->emulator) {
++            virBufferAddLit(buf, "/>\n");
++        } else {
++            virBufferEscapeString(buf, ">%s</emulator>\n",
++                                  def->emulator);
++        }
++    }
+ 
+     for (n = 0; n < def->ndisks; n++)
+         if (virDomainDiskDefFormat(buf, def->disks[n], flags, xmlopt) < 0)
+diff --git a/src/conf/domain_conf.h b/src/conf/domain_conf.h
+index 747ff135e0..05896bd510 100644
+--- a/src/conf/domain_conf.h
++++ b/src/conf/domain_conf.h
+@@ -2586,6 +2586,13 @@ struct _virBlkioDevice {
+     unsigned long long wbps;
+ };
+ 
++typedef enum {
++    VIR_DOMAIN_EMULATOR_TYPE_DEFAULT,
++    VIR_DOMAIN_EMULATOR_TYPE_STUBDOM,
++
++    VIR_DOMAIN_EMULATOR_TYPE_LAST
++} virDomainEmulatorType;
++
+ typedef enum {
+     VIR_DOMAIN_RNG_MODEL_VIRTIO,
+     VIR_DOMAIN_RNG_MODEL_VIRTIO_TRANSITIONAL,
+@@ -3012,6 +3019,8 @@ struct _virDomainDef {
+ 
+     virDomainOSDef os;
+     char *emulator;
++    virDomainEmulatorType emulator_type;
++    char *emulator_cmdline;
+     /* Most {caps_,hyperv_,kvm_,}feature options utilize a virTristateSwitch
+      * to handle support. A few assign specific data values to the option.
+      * See virDomainDefFeaturesCheckABIStability() for details. */
+@@ -4220,6 +4229,7 @@ VIR_ENUM_DECL(virDomainHyperv);
+ VIR_ENUM_DECL(virDomainKVM);
+ VIR_ENUM_DECL(virDomainXen);
+ VIR_ENUM_DECL(virDomainXenPassthroughMode);
++VIR_ENUM_DECL(virDomainEmulatorType);
+ VIR_ENUM_DECL(virDomainMsrsUnknown);
+ VIR_ENUM_DECL(virDomainRNGModel);
+ VIR_ENUM_DECL(virDomainRNGBackend);
+diff --git a/src/conf/schemas/domaincommon.rng b/src/conf/schemas/domaincommon.rng
+index 802d81b9ef..b4310fcbf8 100644
+--- a/src/conf/schemas/domaincommon.rng
++++ b/src/conf/schemas/domaincommon.rng
+@@ -4072,7 +4072,33 @@
+     -->
+   <define name="emulator">
+     <element name="emulator">
+-      <ref name="absFilePath"/>
++      <choice>
++        <group>
++          <optional>
++            <attribute name="type">
++              <choice>
++                <value>qemu</value>
++                <value>stubdom</value>
++              </choice>
++            </attribute>
++          </optional>
++          <optional>
++            <attribute name="cmdline">
++              <text/>
++            </attribute>
++          </optional>
++          <ref name="absFilePath"/>
++        </group>
++        <group>
++          <attribute name="type">
++            <choice>
++              <value>qemu</value>
++              <value>stubdom</value>
++            </choice>
++          </attribute>
++          <empty/>
++        </group>
++      </choice>
+     </element>
+   </define>
+   <!--
+diff --git a/src/libxl/libxl_conf.c b/src/libxl/libxl_conf.c
+index 6cdbd9698a..9105e5a5c0 100644
+--- a/src/libxl/libxl_conf.c
++++ b/src/libxl/libxl_conf.c
+@@ -686,6 +686,24 @@ libxlMakeDomBuildInfo(virDomainDef *def,
+             b_info->device_model_version = libxlDomainGetEmulatorType(def);
+         }
+ 
++        /* In case of stubdom there will be two qemu instances:
++         *  - in stubdom (libxl uses hardcoded path for this one),
++         *  - in dom0 as a backend for stubdom (if needed).
++         * Emulator path control only the second one. It makes a perfect sense
++         * to use <emulator type='stubdom'/> (yes, without emulator path).
++         */
++        if (def->emulator_type == VIR_DOMAIN_EMULATOR_TYPE_STUBDOM)
++            libxl_defbool_set(&b_info->device_model_stubdomain, 1);
++
++        if (def->emulator_cmdline && def->emulator_cmdline[0]) {
++            b_info->extra_hvm = g_strsplit(def->emulator_cmdline, " ", 0);
++            if (b_info->extra_hvm == NULL) {
++                virReportError(VIR_ERR_INTERNAL_ERROR,
++                               _("Failed to parse emulator cmdline"));
++                return -1;
++            }
++        }
++
+         if (def->nserials) {
+             if (def->nserials == 1) {
+                 if (libxlMakeChrdevStr(def->serials[0], &b_info->u.hvm.serial) <
+-- 
+2.44.0
+

@@ -94,11 +94,15 @@ validpgpkeys=('453B65310595562855471199CA68BE8010084C9C') # Jiří Denemark <jde
 _patches=(
   "0001-conf-add-script-attribute-to-disk-specification.patch"
   "0002-libxl-use-disk-script-attribute.patch"
+  "0003-libxl-Stubdom-emulator-type.patch"
+  "0006-libxl-pause-also-stubdomain-if-any-while-pausing-a-d.patch"
 )
 
 _patchsums=(
   "65929a95d0ad7d8b690429e9e451d88aa0c7ffb25605b5866e26669263841d9f" #0001-conf-add-script-attribute-to-disk-specification.patch
   "ef14cfdf670d58941033c1bd529d8842e5a82b1b94ad4e8b8cc09ed6142af8fc" #0002-libxl-use-disk-script-attribute.patch
+  "4e63e1b3dbbe12994404a7776c1870e362aceb9a658188e025fb2133a961e0f5" #0003-libxl-Stubdom-emulator-type.patch
+  "d8c12a621693e14050faec0355cfca604e17262b0d75859ba77637a8403d9015" #0006-libxl-pause-also-stubdomain-if-any-while-pausing-a-d.patch
 )
 
 source=("${_source[@]}" "${_patches[@]}")
