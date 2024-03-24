@@ -185,17 +185,15 @@ check() {
 package() {
   conflicts=('libvirt')
   provides=("libvirt=$pkgver" 'libvirt.so' 'libvirt-admin.so' 'libvirt-lxc.so' 'libvirt-qemu.so')
-  provides+=('libvirt-libxl.so')
+  provides+=('libvirt_driver_libxl.so')
 
   DESTDIR="$pkgdir" ninja -C build install
-  mkdir "$pkgdir"/usr/lib/{sysusers,tmpfiles}.d
-  echo 'g libvirt - -' > "$pkgdir/usr/lib/sysusers.d/libvirt.conf"
+  mkdir -p "$pkgdir"/usr/lib/{sysusers,tmpfiles}.d
+  echo 'g libvirt - -' > "$pkgdir/usr/lib/sysusers.d/libvirt-qemu.conf"
   echo 'u libvirt-qemu /var/lib/libvirt "Libvirt QEMU user"' >> "$pkgdir/usr/lib/sysusers.d/libvirt.conf"
   echo 'm libvirt-qemu kvm' >> "$pkgdir/usr/lib/sysusers.d/libvirt.conf"
   echo 'z /var/lib/libvirt/qemu 0751' > "$pkgdir/usr/lib/tmpfiles.d/libvirt.conf"
 
-  chown 0:102 "$pkgdir/usr/share/polkit-1/rules.d"
-  chmod 0750 "$pkgdir/usr/share/polkit-1/rules.d"
   chmod 600 "$pkgdir"/etc/libvirt/nwfilter/*.xml \
     "$pkgdir/etc/libvirt/qemu/networks/default.xml"
   chmod 700 "$pkgdir"/etc/libvirt/secrets
